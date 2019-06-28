@@ -31,7 +31,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Antlr4.Runtime.Standard">
-      <HintPath>..\Compiler\bin\Debug\Antlr4.Runtime.Standard.dll</HintPath>
+      <HintPath>..\..\..\..\Documents\Visual Studio 2017\Projects\Compiler\Logic\bin\Debug\Antlr4.Runtime.Standard.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

@@ -65,5 +65,13 @@ namespace CIL
         void Accept(CIL_Abort abort);
         
         void Accept(CIL_Copy copy);
+
+        void Accept(CIL_Typeof tp);
+
+        void Accept(CIL_Father father);
+
+        void Accept(CIL_UnaryExpr uExpr);
+
+        void Accept(CIL_is_void isVoid);
     }
 }

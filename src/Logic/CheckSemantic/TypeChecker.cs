@@ -125,6 +125,7 @@ namespace Logic.CheckSemantic
         {
             IType type_exp = this.Visit(node.exp);
             IType type_id = Context.GetTypeFor(node.id.name);
+            node.type = new Type_cool(Context.ActualType.Name);
 
             if (type_exp != null && type_id != null && !type_exp.Conform(type_id))
             {
@@ -140,10 +141,16 @@ namespace Logic.CheckSemantic
             int num;
 
             if (int.TryParse(node.name, out num))
+            {
+                node.type = new Type_cool("Int");
                 return Context.GetType("Int");
+            }
 
             if (node.name == "true" || node.name == "false")
+            {
+                node.type = new Type_cool("Bool");
                 return Context.GetType("Bool");
+            }
 
             Logger += "En la expresion " + node.ToString() + "-> error de tipos (La constante no es Int ni Bool)\n";
             return null; 
@@ -184,7 +191,10 @@ namespace Logic.CheckSemantic
         public IType Visit(Method_Def node)
         {
             foreach (var arg in node.args.list_Node)
+            {
+                arg.name.type = arg.type;
                 Context.DefineSymbol(arg.name.name, Context.GetType(arg.type.s));
+            }
 
             IType type_exp = this.Visit(node.exp);
             IType type_return = Context.GetType(node.type.s);
@@ -218,6 +228,7 @@ namespace Logic.CheckSemantic
 
         public IType Visit(Formal node)
         {
+            node.name.type = node.type;
             return Context.GetType(node.type.s);
         }
 
@@ -229,6 +240,7 @@ namespace Logic.CheckSemantic
         public IType Visit(Call_Method node)
         {
             Method m = Context.ActualType.GetMethod(node.name.name);
+            node.type = new Type_cool(Context.ActualType.Name);
             for (int i = 0; i < node.args.list_Node.Count; i++)
             {
                 var exp = node.args.list_Node[i];
@@ -309,7 +321,9 @@ namespace Logic.CheckSemantic
 
         public IType Visit(Id node)
         {
-            return Context.GetTypeFor(node.name);
+            node.type = new Type_cool(Context.ActualType.Name);
+            IType type = Context.GetTypeFor(node.name);
+            return type;
         }
 
         public IType Visit(Dispatch node)
@@ -346,11 +360,13 @@ namespace Logic.CheckSemantic
 
         public IType Visit(Str node)
         {
+            node.type = new Type_cool("String");
             return Context.GetType("String");
         }
 
         public IType Visit(Branch node)
         {
+            node.formal.name.type = node.formal.type;
             return Visit(node.exp);
         }
 

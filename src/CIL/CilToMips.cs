@@ -22,6 +22,7 @@ namespace CIL
         public Scope CurrentScope;
         public Dictionary<string, IType> Clases;
         private static int _indx = 0;
+        private Dictionary<string, int> VT;
 
         public int GetNum()
         {
@@ -32,6 +33,7 @@ namespace CIL
         public CilToMips(Dictionary<string, IType> clases)
         {
             Clases = clases;
+            VT = new Dictionary<string, int>();
         }
         
         public void Accept(CIL_Program prog)
@@ -39,18 +41,30 @@ namespace CIL
             Text += PlantillaMIPS.StringLength + "\n" +
                     PlantillaMIPS.StringConcat + "\n" +
                     PlantillaMIPS.StringSubstring + "\n" +
-                    PlantillaMIPS.InputString + "\n";
+                    PlantillaMIPS.InputString + "\n" +
+                    PlantillaMIPS.Copy + "\n" +
+                    PlantillaMIPS.ZeroException + "\n";
             
             prog.Types.Accept(this);
             prog.Data.Accept(this);
-            prog.Code.Accept(this);
-
+            prog.Code.Accept(this);  
+         
             Text += "\nmain:\n" +
-                    "\t sw $ra, 0($sp) \n" +
+                    "\t sw $zero, 0($sp) \n" +
+                    "\t sw $ra, -4($sp) \n" +
+                    "\t sw $fp, -8($sp) \n" +
+                    "\t subu $sp, $sp, 12\n" +
+                    "\t addu $fp, $sp, 12\n\n" +
                     "\t jal Main.constructor \n" +
-                    "\t sw $v0, -4($sp) \n" +
-                    "\t jal Main_main \n" +
-                    "\t lw $ra, 0($sp) \n" +
+                    "\t sw $v0, -12($fp) \n" +
+                    "\t sw $v0, -12($sp) \n" +
+                    "\t jal __init_Main \n" +
+                    "\t sw $v0, -12($fp) \n" +
+                    "\t sw $v0, -12($sp) \n" +
+                    "\t jal main_Main \n" +
+                    "\n\t lw $ra, -4($fp) \n" +
+                    "\t lw $fp, -8($fp) \n" +
+                    "\t addu $sp, $sp, " + 12 + "\n" +
                     "\t jr $ra \n\n";
         }
 
@@ -61,17 +75,40 @@ namespace CIL
 
         public void Accept(CIL_OneType ot)
         {
+            Data += "vt." + ot.name + ": .word ";
+
+            if (Clases[ot.name].Father != null)
+                Data += "vt." + Clases[ot.name].Father.Name + ", ";
+            else
+                Data += "0, ";
+            
+            int offset = 1;
+            // ot.Methods en Item1 tiene los nombres de los metodos como tal
+            // y en Item2 esta el nombre de los metodos dentro de la clase
+            foreach (var method in ot.Methods)
+            {
+                Data += method.Item2 + ", ";
+
+                if (!VT.ContainsKey(method.Item1))
+                    VT[method.Item1] = offset;
+
+                offset++;
+            }
+
+            Data += "0 \n";
+            
             string msgName = "str" + GetNum();
             Data += msgName + ": .asciiz \"" + ot.name + "\"\n";
             
             Text += ot.name + ".constructor:\n";
 
-            Text += "\t sw $ra, -4($sp) \n" +
+            Text += "\t sw $zero, 0($sp) \n" +
+                    "\t sw $ra, -4($sp) \n" +
                     "\t sw $fp, -8($sp) \n" +
                     "\t subu $sp, $sp, " + 12 + "\n" +
                     "\t addu $fp, $sp, " + 12 + "\n\n";
 
-            int space = ot.Attributes.Count + ot.Methods.Count + 3;
+            int space = 4 * (ot.Attributes.Count + 3);
 
             Text += "\t li $v0, 9 \n" +
                     "\t li $a0, " + space + "\n" +
@@ -80,27 +117,13 @@ namespace CIL
             Text += "\t sw $a0, 0($v0) \n" +
                     "\t la $a0, " + msgName + "\n" +
                     "\t sw $a0, 4($v0) \n";
-
-            if (Clases[ot.name].Father != null)
-            {
-                Text += "\t jal " + Clases[ot.name].Father.Name + ".constructor" +
-                        "\t sw $v0, 8($v0) \n";
-            }
-            else
-            {
-                Text += "\t li $v0, 0 \n" +
-                        "\t sw $v0, 8($sp) \n";
-            }
-
-            for (int i = 0; i < ot.Methods.Count; i++)
-            {
-                Text += "\t la $a0, " + ot.Methods[i].Item2 + "\n" +
-                        "\t sw $a0, " + ((4 * i) + 12) + "($v0) \n";
-            }
+            
+            Text += "\t la $a0, vt." + ot.name + "\n" +
+                    "\t sw $a0, 8($v0) \n";
 
             for (int i = 0; i < ot.Attributes.Count; i++)
             {
-                int temp = 4 * (3 + ot.Methods.Count + i);
+                int temp = 4 * (3 + i);
                 Text += "\t li $a0, 0 \n" +
                         "\t sw $a0, " + temp + "($v0) \n";
             }
@@ -124,7 +147,8 @@ namespace CIL
         {
             Data += "\nbuffer:             .space    65536 \n" +
                     "zero:               .byte     0 \n" +
-                    "strsubstrexception: .asciiz \"Substring index exception\" \n\n";
+                    "strsubstrexception: .asciiz \"Substring index exception\" \n" +
+                    "divisionZero:       .asciiz \"Division by Zero Exception\" \n\n";
             
             foreach (var strVar in data._stringVars.Keys)
                 Data += data._stringVars[strVar] + ":\t .asciiz \t" + "\"" + strVar + "\"\n";
@@ -145,7 +169,8 @@ namespace CIL
             // van ra (-4($sp)) y fp (-8($sp))
             // Despues de los Args van los Locals
 
-            scope.VarInStack["this"] = -14;
+            scope.VarInStack["void"] = 0;
+            scope.VarInStack["this"] = -12;
             
             int i = -16;
             foreach (var arg in function.Args)
@@ -164,7 +189,8 @@ namespace CIL
 
             Text += function.Name + ":\n";
 
-            Text += "\t sw $ra, -4($sp) \n" +
+            Text += "\t sw $zero, 0($sp) \n" +
+                    "\t sw $ra, -4($sp) \n" +
                     "\t sw $fp, -8($sp) \n" +
                     "\t subu $sp, $sp, " + n + "\n" +
                     "\t addu $fp, $sp, " + n + "\n";
@@ -257,19 +283,47 @@ namespace CIL
                 rigthMem = "\t lw $t2, " + CurrentScope.VarInStack[arithExpr.RigthOp] + "($fp) \n";
 
             string operation = "";
+            var num = GetNum();
             switch (arithExpr.Op)
             {
                     case "+":
-                        operation = "\t add $t0, $t1, $t2 \n";
+                        operation += "\t add $t0, $t1, $t2 \n";
                         break;
                     case "-":
-                        operation = "\t sub $t0, $t1, $t2 \n";
+                        operation += "\t sub $t0, $t1, $t2 \n";
                         break;
                     case "*":
-                        operation = "\t mulo $t0, $t1, $t2 \n";
+                        operation += "\t mulo $t0, $t1, $t2 \n";
                         break;
                     case "/":
-                        operation = "\t div $t0, $t1, $t2 \n";
+                        operation += "\t beq $t2, $zero, _zeroException \n" +
+                                     "\t div $t0, $t1, $t2 \n";
+                        break;
+                    case "<":
+                        operation += "\t sub $t0, $t1, $t2 \n" +
+                                     "\t bltz $t0, $true" + num + " \n" +
+                                     "\t li $t0, 0 \n" +
+                                     "\t j $end" + num + " \n" +
+                                     "\n$true" + num + ": \n" +
+                                     "\t li $t0, 1 \n" +
+                                     "\n$end" + num + ":\n\n";
+                        break;
+                    case "<=":
+                        operation += "\t sub $t0, $t1, $t2 \n" +
+                                     "\t blez $t0, $true" + num + " \n" +
+                                     "\t li $t0, 0 \n" +
+                                     "\t j $end" + num + " \n" +
+                                     "\n$true" + num + ": \n" +
+                                     "\t li $t0, 1 \n" +
+                                     "\n$end" + num + ":\n\n";
+                        break;
+                    case "=":
+                        operation += "\t beq $t1, $t2, $true" + num + " \n" +
+                                     "\t li $t0, 0 \n" +
+                                     "\t j $end" + num + " \n" +
+                                     "\n$true" + num + ": \n" +
+                                     "\t li $t0, 1 \n" +
+                                     "\n$end" + num + ":\n\n";
                         break;
                     default:
                         throw new InvalidOperationException("Operacion " + arithExpr.Op + " no definida");
@@ -283,28 +337,39 @@ namespace CIL
 
         public void Accept(CIL_GetAttr getAttr)
         {
-            // TODO: hacerme una forma para saber el tipo de la instancia aqui
-            var instance = getAttr.Instance;
+            var type = getAttr.Instance.Type;
             
-            var attr = Clases[instance].GetAttribute(getAttr.Attr);
-            int indx = Clases[instance].Attributes.IndexOf(attr);
+            var attr = Clases[type].GetAttribute(getAttr.Attr);
+            int indx = Clases[type].AllAttributes().IndexOf(attr);
 
-            int pos = 8 + (4 * Clases[getAttr.Instance].Methods.Count) + (indx * 4);
+            int pos = 12 + (indx * 4);
 
-            Text += "\t lw $v0, " + getAttr.Instance + "\n" +
-                    "\t lw " + CurrentScope.VarInStack[getAttr.Dest] + "($fp), " + pos + "($v0) \n";
+            Text += "\t lw $v0, " + CurrentScope.VarInStack[getAttr.Instance.Value] + "($fp) \n" +
+                    "\t lw $a0, " + pos + "($v0) \n" +
+                    "\t sw $a0, " + CurrentScope.VarInStack[getAttr.Dest] + "($fp) \n";
         }
 
         public void Accept(CIL_SetAttr setAttr)
         {
-            // TODO: hacerme una forma para saber el tipo de la instancia aqui
-            var attr = Clases[setAttr.Instance].GetAttribute(setAttr.Attr);
-            int indx = Clases[setAttr.Instance].Attributes.IndexOf(attr);
+            var type = setAttr.Instance.Type;
+            
+            var attr = Clases[type].GetAttribute(setAttr.Attr);
+            int indx = Clases[type].AllAttributes().IndexOf(attr);
 
-            int pos = 8 + (4 * Clases[setAttr.Instance].Methods.Count) + (indx * 4);
+            int pos = 12 + (indx * 4);
 
-            Text += "\t lw $v0, " + setAttr.Instance + "\n" +
-                    "\t sw " + CurrentScope.VarInStack[setAttr.Value] + "($fp), " + pos + "($v0) \n";
+            Text += "\t lw $v0, " + CurrentScope.VarInStack[setAttr.Instance.Value] + "($fp) \n";
+
+            if (int.TryParse(setAttr.Value, out int n))
+            {
+                Text += "\t li $a0, " + n + " \n";
+            }
+            else
+            {
+                Text += "\t lw $a0, " + CurrentScope.VarInStack[setAttr.Value] + "($fp) \n";
+            }
+            
+            Text += "\t sw $a0, " + pos + "($v0) \n";
         }
 
         public void Accept(CIL_VCall vCall)
@@ -326,8 +391,13 @@ namespace CIL
 
                 i -= 4;
             }
-            
-            Text += "\t jal " + vCall.MyType + "." + vCall.Name + "\n" +
+
+            var attr = Clases[vCall.MyType].GetMethod(vCall.Name);
+            var indx = Clases[vCall.MyType].AllMethods().IndexOf(attr);
+
+            Text += "\t la $a0, vt." + vCall.MyType + "\n" +
+                    "\t lw $a1, " + (4 * (indx + 1)) + "($a0) \n" +
+                    "\t jal $a1 \n" +
                     "\t sw $v0, " + CurrentScope.VarInStack[vCall.Dest] + "($fp) \n";
         }
 
@@ -339,7 +409,10 @@ namespace CIL
 
         public void Accept(CIL_Call call)
         {
-            int i = -12;
+            Text += "\t lw $a0, " + CurrentScope.VarInStack[call.This] + "($fp) \n" +
+                    "\t sw $a0, -12($sp) \n";
+            
+            int i = -16;
             
             foreach (var arg in call.Args)
             {
@@ -357,7 +430,12 @@ namespace CIL
                 i -= 4;
             }
 
-            Text += "\t jal " + call.Name + "\n" +
+            var indx = VT[call.Name];
+
+            Text += "\t lw $a0, " + CurrentScope.VarInStack[call.This] + "($fp) \n" + // carga la instancia de la clase
+                    "\t lw $a1, 8($a0) \n" + // carga la referencia a la vt de la clase
+                    "\t lw $a2, " + (4 * indx) + "($a1) \n" + // carga la referencia al metodo que quiere llamar
+                    "\t jal $a2 \n" +
                     "\t sw $v0, " + CurrentScope.VarInStack[call.Dest] + "($fp) \n";
         }
 
@@ -388,12 +466,14 @@ namespace CIL
 
         public void Accept(CIL_Goto _goto)
         {
-            Text += "\t j " + _goto._label + "\n";
+            Text += "\t j $" + _goto._label + "\n";
         }
 
         public void Accept(CIL_Return _return)
         {
-            if (int.TryParse(_return.value, out int n))
+            if (_return.value == "" || _return.value == "0")
+            {}
+            else if (int.TryParse(_return.value, out int n))
             {
                 Text += "\t li $v0, " + n + "\n";
             }
@@ -418,14 +498,14 @@ namespace CIL
 
         public void Accept(CIL_Print_Int print)
         {
-            Text += "\t lw $a0, " + CurrentScope.VarInStack[print._var] + "($fp)" +
+            Text += "\t lw $a0, " + CurrentScope.VarInStack[print._var] + "($fp) \n" +
                     "\t li $v0, 1 \n" +
                     "\t syscall \n";
         }
 
         public void Accept(CIL_Print_Str print)
         {
-            Text += "\t la $a0, " + print._var + "\n" +
+            Text += "\t lw $a0, " + CurrentScope.VarInStack[print._var] + "($fp) \n" +
                     "\t li $v0, 4 \n" +
                     "\t syscall \n";
         }
@@ -433,7 +513,7 @@ namespace CIL
         public void Accept(CIL_ConditionalJump cj)
         {
             Text += "\t lw $t0, " + CurrentScope.VarInStack[cj.cond] + "($fp) \n" +
-                    "\t bne $t0, $r0, $" + cj.label + "\n";
+                    "\t bne $t0, $zero, $" + cj.label + "\n";
         }
 
         public void Accept(CIL_TypeName tn)
@@ -456,9 +536,79 @@ namespace CIL
             Text += "\t lw $a0, " + CurrentScope.VarInStack[copy.Instance] + "($fp) \n" +
                     "\t sw $a0, -12($sp) \n" +
                     "\t lw $a1, 0($a0) \n" +
-                    "\t sw $a0, -16($sp) \n" +
+                    "\t sw $a1, -16($sp) \n" +
                     "\t jal _copy \n" +
                     "\t sw $v0, " + CurrentScope.VarInStack[copy.Dest] + "($fp) \n";
+        }
+
+        public void Accept(CIL_Typeof tp)
+        {
+            Text += "\t lw $a0, " + CurrentScope.VarInStack[tp.expr] + "($fp) # carga instancia \n" +
+                    "\t lw $a1, 8($a0) # carga el vt de la instancia \n" +
+                    "\t sw $a1, " + CurrentScope.VarInStack[tp.dest] + "($fp) # devuelve una referencia al vt en la variable dest \n";
+        }
+
+        public void Accept(CIL_Father father)
+        {
+            Text += "\t lw $a0, " + CurrentScope.VarInStack[father.instans] + "($fp) \n" +
+                    "\t lw $a1, 0($a0) \n" +
+                    "\t sw $a1, " + CurrentScope.VarInStack[father.dest] + "($fp) \n";
+        }
+
+        public void Accept(CIL_UnaryExpr uExpr)
+        {
+            string expr = "";
+            
+            if (int.TryParse(uExpr.expr, out int n1))
+                expr = "\t li $t1, " + n1 + "\n";
+            else
+                expr = "\t lw $t1, " + CurrentScope.VarInStack[uExpr.expr] + "($fp) \n";
+
+            string operation = "";
+            var num = GetNum();
+            switch (uExpr.op)
+            {
+                    case "~":
+                        operation += "\t li $t2, 0 \n" + 
+                                     "\t nor $t0, $t1, $t2 \n";
+                        break;
+                    case "not": //booleano
+                        operation += "\t beq $t1, $zero, $false" + num + "\n" +
+                                     "\t la $t0, 0 \n" +
+                                     "\t j $end" + num + "\n" +
+                                     "\n$false" + num + ": \n" +
+                                     "\t la $t0, 1 \n" +
+                                     "\n$end" + num + ":\n\n";
+                        break;
+                    default:
+                        throw new InvalidOperationException("Operacion " + uExpr.op + " no definida");
+            }
+
+            Text += expr +
+                    operation +
+                    "\t sw $t0, " + CurrentScope.VarInStack[uExpr.dest] + "($fp) \n";
+        }
+
+        public void Accept(CIL_is_void isVoid)
+        {
+            if (int.TryParse(isVoid.arg, out int n))
+            {
+                Text += "\t la $a0, " + n + "\n";
+            }
+            else
+            {
+                Text += "\t lw $a0, " + CurrentScope.VarInStack[isVoid.arg] + "($fp) \n";
+            }
+
+            var num = GetNum();
+
+            Text += "\t beq $a0, $zero, $true" + num + "\n" +
+                    "\t la $t0, 0 \n" +
+                    "\t j $end" + num + "\n" +
+                    "\n$true" + num + ": \n" +
+                    "\t la $t0, 1 \n" +
+                    "\n$end" + num + ":\n\n" +
+                    "\t sw $t0, " + CurrentScope.VarInStack[isVoid.ret] + "($fp) \n";
         }
     }
 }

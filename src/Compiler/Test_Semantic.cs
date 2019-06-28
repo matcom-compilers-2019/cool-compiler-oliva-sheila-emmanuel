@@ -19,33 +19,31 @@ namespace Compiler
             Console.WriteLine(DefChecker.Logger);
             if (check)
             {
-                Console.WriteLine("Definiciones OK");
                 Dictionary<string, IType> types = IType.GetAllTypes(ast);
 
                 bool check_inherits = InheritsChecker.Check(ast, types);
                 if (check_inherits)
                 {
-                    Console.WriteLine("Herencia OK");
                     ContextType context = new ContextType(types);
                     var SymChecker = new SymCheckerVisitor(context);
                     bool check_sym = SymChecker.Visit(ast);
-                    Console.WriteLine(SymChecker.Logger);
 
                     if (check_sym)
                     {
-                        Console.WriteLine("Simbolos OK");
-
                         context = new ContextType(types);
                         var TypeCheck = new TypeCheckerVisitor(context);
                         TypeCheck.Visit(ast);
-                        Console.WriteLine(TypeCheck.Logger);
-                        return true;
+                        if (TypeCheck.Logger == "")
+                        {
+                            Console.WriteLine("Chequeo semantico OK \n");
+                            return true;
+                        }
+                        else Console.WriteLine(TypeCheck.Logger);
                     }
-                    else Console.WriteLine("Simbolos al berro");
+                    else Console.WriteLine(SymChecker.Logger);
                 }
-                else Console.WriteLine("Herencia al berro");
             }
-            else Console.WriteLine("Definiciones al berro");
+            Console.WriteLine("Falla en el chequeo semantico");
             return false;
         }
         

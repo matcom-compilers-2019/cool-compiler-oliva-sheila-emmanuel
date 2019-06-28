@@ -215,7 +215,7 @@ namespace AST
 
         public override string ToString()
         {
-            return s;
+            return "'" + s + "'";
         }
     }
 

@@ -18,10 +18,14 @@ namespace Logic
             var lexer = new coolgrammarLexer(input);
             var tokens = new CommonTokenStream(lexer);
             var parser = new coolgrammarParser(tokens);
-            //Console.WriteLine(parser.program().ToString(parser));
 
             var v = new Transpiler();
-            return v.Visit(parser.program());
+            
+            var p = parser.program();
+            var exc = p.exception;
+            if(exc == null)
+                return v.Visit(p);
+            return null;
         }
     }
 

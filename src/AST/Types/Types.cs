@@ -114,11 +114,29 @@ namespace AST
         public List<Method> AllMethods()
         {
             List<Method> list = new List<Method>();
+            List<string> names = new List<string>();
+
             if (Father != null)
                 list = Father.AllMethods();
 
+            foreach (var item in list)
+            {
+                names.Add(item.Name);
+            }
+
             foreach (var item in Methods)
-                list.Add(item);
+            {
+                if (names.Contains(item.Name))
+                {
+                    int idx = names.IndexOf(item.Name);
+                    list[idx] = item;
+                }
+                else
+                {
+                    names.Add(item.Name);
+                    list.Add(item);
+                }
+            }
 
             return list;
         }
@@ -131,6 +149,12 @@ namespace AST
             if (Father == null) return null;
 
             return Father.GetMethod(name);
+        }
+
+        public string GetTypeWhereMethod(string name)
+        {
+            if (Methods.Select(m => m.Name).Contains(name)) return Name;
+            return Father.GetTypeWhereMethod(name);
         }
 
         public IType LCA(IType other)
@@ -164,10 +188,14 @@ namespace AST
             Method m9 = new Method("in_string", TString, "IO");
             Method m10 = new Method("in_int", TInt, "IO");
 
-            TObject.Methods = new List<Method> { m1, m2, m3 };
-            TString.Methods = new List<Method> { m4, m5, m6 };
-            TIO.Methods = new List<Method> { m7, m8, m9, m10 };
+            TObject.Methods = new List<Method> { new Method("__init", TSelfType, "Object"), m1, m2, m3 };
+            TString.Methods = new List<Method> { new Method("__init", TSelfType, "String"), m4, m5, m6 };
+            TIO.Methods = new List<Method> { new Method("__init", TSelfType, "IO"), m7, m8, m9, m10 };
 
+            TInt.Methods = new List<Method> {new Method("__init", TSelfType, "Int")};
+            TBool.Methods = new List<Method> {new Method("__init", TSelfType, "Bool")};
+            TSelfType.Methods = new List<Method> {new Method("__init", TSelfType, "SELF_TYPE")};
+                
             types.Add(TObject);
             types.Add(TSelfType);
             types.Add(TInt);
@@ -202,6 +230,10 @@ namespace AST
 
                 foreach (Attr_Def attr in Class.attr.list_Node)
                     attrs.Add(new Attribute(attr.name.name, types[attr.type.s], Class.type.s));
+
+                mtds.Add(new Method("__init", types["SELF_TYPE"], Class.type.s));
+
+                if(Class.type.s == "Main") mtds.Add(new Method("__distans", types["Int"], "Main"));
 
                 foreach (Method_Def mtd in Class.method.list_Node)
                 {

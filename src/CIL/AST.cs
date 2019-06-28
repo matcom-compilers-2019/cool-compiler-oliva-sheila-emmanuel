@@ -156,7 +156,7 @@ namespace CIL
             {
                 ret += item.ToString();
             }
-            ret += "}";
+            ret += "}\n";
             return ret;
         }
 
@@ -311,13 +311,14 @@ namespace CIL
 
     }
 
+
     public class CIL_GetAttr : CIL_Instruction
     {
         public string Dest;
-        public string Instance;
+        public CIL_MyVar Instance;
         public string Attr;
 
-        public CIL_GetAttr(string dest, string instance, string attr)
+        public CIL_GetAttr(string dest, CIL_MyVar instance, string attr)
         {
             Dest = dest;
             Instance = instance;
@@ -337,11 +338,11 @@ namespace CIL
 
     public class CIL_SetAttr : CIL_Instruction
     {
-        public string Instance;
+        public CIL_MyVar Instance;
         public string Attr;
         public string Value;
 
-        public CIL_SetAttr(string instance, string attr, string value)
+        public CIL_SetAttr(CIL_MyVar instance, string attr, string value)
         {
             Instance = instance;
             Attr = attr;
@@ -379,6 +380,10 @@ namespace CIL
         public override string ToString()
         {
             string ret = "";
+            foreach (var item in Args)
+            {
+                ret += "   ARG " + item + " ;\n";
+            }
             ret += string.Format("{0} = VCALL {1} {2} ;\n", Dest, MyType, Name);
             return ret;
         }
@@ -406,16 +411,38 @@ namespace CIL
 
     }
 
+    public class CIL_Father : CIL_Instruction
+    {
+        public string instans;
+        public string dest;
+        public CIL_Father(string dest, string instans)
+        {
+            this.dest = dest;
+            this.instans = instans;
+        }
+
+        public override void Accept(IVisitor visitor) => visitor.Accept(this);
+
+        public override string ToString()
+        {
+            string ret = "";
+            ret += string.Format("{0} = FATHER {1} ;\n", dest, instans);
+            return ret;
+        }
+    }
+
     public class CIL_Call : CIL_Instruction
     {
         public string Dest;
         public string Name;
+        public string This;
         public List<string> Args;
 
-        public CIL_Call(string dest, string name, List<string> args)
+        public CIL_Call(string dest, string name, string @this, List<string> args)
         {
             Dest = dest;
             Name = name;
+            This = @this;
             Args = args;
         }
 
@@ -424,6 +451,10 @@ namespace CIL
         public override string ToString()
         {
             string ret = "";
+            foreach (var item in Args)
+            {
+                ret += "   ARG " + item + " ;\n";
+            }
             ret += string.Format("{0} = CALL {1} ;\n", Dest, Name);
             return ret;
         }
@@ -710,4 +741,27 @@ namespace CIL
         
         public override void Accept(IVisitor visitor) => visitor.Accept(this);
     }
+
+    public class CIL_MyVar : CIL_Instruction
+    {
+        public string Value;
+        public string Type;
+
+        public CIL_MyVar(string value, string type)
+        {
+            Value = value;
+            Type = type;
+        }
+        
+        public override void Accept(IVisitor visitor) => visitor.Accept(this);
+
+        public override string ToString()
+        {
+            string ret = "";
+            ret += string.Format("{0} MyVar {1} {2}", ret, Value, Type);
+            return ret;
+        }
+    }
+
+    
 }

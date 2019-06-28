@@ -29,99 +29,95 @@
 
         // -12($sp) = string a, -16($sp) = string b
         public const string StringConcat =
-@"
-_stringconcat:
+"_stringconcat: \n\n" +
 
-    sw $ra, -4($sp)
-    sw $fp, -8($sp)
-    subu $sp, $sp, 16
-    addu $fp, $sp, 16
+    "\t sw $ra, -4($sp) \n" +
+    "\t sw $fp, -8($sp) \n" +
+    "\t subu $sp, $sp, 16 \n" +
+    "\t addu $fp, $sp, 16 \n\n" +
 
-    lw $a0, -12($fp)
-    sw $a0, -12($sp)
-    jal _stringlength
-    move $v1, $v0
+    "\t lw $a0, -12($fp) \n" +
+    "\t sw $a0, -12($sp) \n" +
+    "\t jal _stringlength \n" +
+    "\t move $v1, $v0 \n\n" +
 
-    lw $a0, -16($fp)
-    sw $a0, -16($sp)
-    jal _stringlength
-    add $v1, $v1, $v0
-    addi $v1, $v1, 1
-    li $v0, 9
-    move $a0, $v1
-    syscall
-    move $v1, $v0
-    lw $a0, -12($fp)
-_stringconcat.loop1:
-    lb $a1, 0($a0)
-    beqz $a1, _stringconcat.end1
-    sb $a1, 0($v1)
-    addiu $a0, $a0, 1
-    addiu $v1, $v1, 1
-    j _stringconcat.loop1
-_stringconcat.end1:
-    lw $a0, -16($fp)
-_stringconcat.loop2:
-    lb $a1, 0($a0)
-    beqz $a1, _stringconcat.end2
-    sb $a1, 0($v1)
-    addiu $a0, $a0, 1
-    addiu $v1, $v1, 1
-    j _stringconcat.loop2
-_stringconcat.end2:
-    sb $zero, 0($v1)
+    "\t lw $a0, -16($fp) \n" +
+    "\t sw $a0, -16($sp) \n" +
+    "\t jal _stringlength \n" +
+    "\t add $v1, $v1, $v0 \n" +
+    "\t addi $v1, $v1, 1 \n" +
+    "\t li $v0, 9 \n" +
+    "\t move $a0, $v1 \n" +
+    "\t syscall \n" +
+    "\t move $v1, $v0 \n" +
+    "\t lw $a0, -12($fp) \n" +
+"_stringconcat.loop1: \n" +
+    "\t lb $a1, 0($a0) \n" +
+    "\t beqz $a1, _stringconcat.end1 \n" +
+    "\t sb $a1, 0($v1) \n" +
+    "\t addiu $a0, $a0, 1 \n" +
+    "\t addiu $v1, $v1, 1 \n" +
+    "\t j _stringconcat.loop1 \n" +
+"_stringconcat.end1: \n" +
+    "\t lw $a0, -16($fp) \n" +
+"_stringconcat.loop2: \n" +
+    "\t lb $a1, 0($a0) \n" +
+    "\t beqz $a1, _stringconcat.end2 \n" +
+    "\t sb $a1, 0($v1) \n" +
+    "\t addiu $a0, $a0, 1 \n" +
+    "\t addiu $v1, $v1, 1 \n" +
+    "\t j _stringconcat.loop2 \n" +
+"_stringconcat.end2: \n" +
+    "\t sb $zero, 0($v1) \n\n" +
 
-    lw $ra, -4($fp)
-    lw $fp, -8($fp)
-    addu $sp, $sp, 16
+    "\t lw $ra, -4($fp) \n" +
+    "\t lw $fp, -8($fp) \n" +
+    "\t addu $sp, $sp, 16 \n\n" +
 
-    jr $ra
-";
+    "\t jr $ra \n";
 
         // -12($sp) = msg, -16($sp) = int a, -20($sp) = int b
         public const string StringSubstring =
-@"
-_stringsubstr:
+"_stringsubstr: \n\n" +
 
-    sw $ra, -4($sp)
-    sw $fp, -8($sp)
-    subu $sp, $sp, 20
-    addu $fp, $sp, 20
+    "\t sw $ra, -4($sp) \n" +
+    "\t sw $fp, -8($sp) \n" +
+    "\t subu $sp, $sp, 20 \n" +
+    "\t addu $fp, $sp, 20 \n\n" +
 
-    lw $a0, -20($sp)
-    addiu $a0, $a0, 1
-    li $v0, 9
-    syscall
-    move $v1, $v0
-    lw $a0, -12($sp)
-    lw $a1, -16($sp)
-    add $a0, $a0, $a1
-    lw $a2, -20($sp)
-_stringsubstr.loop:
-    beqz $a2, _stringsubstr.end
-    lb $a1, 0($a0)
-    beqz $a1, _substrexception
-    sb $a1, 0($v1)
-    addiu $a0, $a0, 1
-    addiu $v1, $v1, 1
-    addiu $a2, $a2, -1
-    j _stringsubstr.loop
-_stringsubstr.end:
-    sb $zero, 0($v1)
+    "\t lw $a0, -20($sp) \n" +
+    "\t addiu $a0, $a0, 1 \n" +
+    "\t li $v0, 9 \n" +
+    "\t syscall \n" +
+    "\t move $v1, $v0 \n" +
+    "\t lw $a0, -12($sp) \n" +
+    "\t lw $a1, -16($sp) \n" +
+    "\t add $a0, $a0, $a1 \n" +
+    "\t lw $a2, -20($sp) \n" +
+"_stringsubstr.loop: \n" +
+    "\t beqz $a2, _stringsubstr.end \n" +
+    "\t lb $a1, 0($a0) \n" +
+    "\t beqz $a1, _substrexception \n" +
+    "\t sb $a1, 0($v1) \n" +
+    "\t addiu $a0, $a0, 1 \n" +
+    "\t addiu $v1, $v1, 1 \n" +
+    "\t addiu $a2, $a2, -1 \n" +
+    "\t j _stringsubstr.loop \n" +
+"_stringsubstr.end: \n" +
+    "\t sb $zero, 0($v1) \n\n" +
 
-    lw $ra, -4($fp)
-    lw $fp, -8($fp)
-    addu $sp, $sp, 20
+    "\t lw $ra, -4($fp) \n" +
+    "\t lw $fp, -8($fp) \n" +
+    "\t addu $sp, $sp, 20 \n\n" +
 
-    jr $ra
+    "\t jr $ra \n\n" +
             
-_substrexception:
-    la $a0, strsubstrexception
-    li $v0, 4
-    syscall
-    li $v0, 10
-    syscall
-";
+"_substrexception: \n" +
+    "\t la $a0, strsubstrexception \n" +
+    "\t li $v0, 4 \n" +
+    "\t syscall \n" +
+    "\t li $v0, 10 \n" +
+    "\t syscall \n";
 
         public const string InputString = 
 @"
@@ -185,19 +181,25 @@ _copy:
 _copy.loop:
     lw $a2, 0($a1)
     sw $a2, 0($a3)
-    addiu $a0, $a0, -1
+    addiu $a0, $a0, -4
     addiu $a1, $a1, 4
     addiu $a3, $a3, 4
     beq $a0, $zero, _copy.end
     j _copy.loop
 _copy.end:
-    move $v0, $a3
-
     lw $ra, -4($fp)
     lw $fp, -8($fp)
     addu $sp, $sp, 8
 
     jr $ra
 ";
+
+        public const string ZeroException =
+"\n_zeroException: \n" +
+    "\t li $v0, 4 \n" +
+    "\t la $a0, divisionZero \n" +
+    "\t syscall \n" +
+    "\t li $v0, 10 \n" +
+    "\t syscall \n";
     }
 }

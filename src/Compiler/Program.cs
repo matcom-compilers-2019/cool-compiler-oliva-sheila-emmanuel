@@ -31,37 +31,41 @@ namespace Compiler
         }
         static void Main(string[] args)
         {
-            StreamReader x = new StreamReader("a.txt");
+            StreamReader x = new StreamReader("../../../cool.cl");
             string adsa = x.ReadToEnd();
             Console.WriteLine(adsa);
-            Show_AST(GetAST.Show(adsa));
-            var arg = (AST.Program)GetAST.Show(adsa);
+            var ast = GetAST.Show(adsa);
+
+            if (ast == null)
+            {
+                Console.ReadLine();
+                return;
+            }
+            
+            var arg = (AST.Program)ast;
 
             if (Test_Semantic.Check(arg))
             {
                 var cil = GET_CIL_AST.CIL(arg);
                 Console.WriteLine(cil);
 
-                // TODO: cambiar el null por el diccionario de tipos
-                // TODO: a los metodos de las clases poner como prefijo "Clase." en el nombre
                 var visitorCIL = new CilToMips(IType.GetAllTypes(arg));
                 visitorCIL.Accept(cil);
 
                 var data = visitorCIL.Data.Split('\n');
                 var text = visitorCIL.Text.Split('\n');
 
-                StreamWriter mipStreamWriter = new StreamWriter("test.s");
-
-                // mipStreamWriter.Write(visitorCIL.Data);
+                StreamWriter mipStreamWriter = new StreamWriter("../../../mips.s");
+                
                 foreach (var s in data)
                     mipStreamWriter.WriteLine(s);
-
-                // mipStreamWriter.Write(visitorCIL.Text);
+                
                 foreach (var s in text)
                     mipStreamWriter.WriteLine(s);
 
                 mipStreamWriter.Close();
             }
+            Console.ReadLine();
         }
     }
 }

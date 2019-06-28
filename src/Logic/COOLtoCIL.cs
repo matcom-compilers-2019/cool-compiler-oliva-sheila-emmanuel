@@ -138,7 +138,8 @@ namespace Logic
             method = new Current_Method();
             take_data = new Take_str("data");
             Data = new Dictionary<string, string>();
-            Code = new Dictionary<string, CIL_Function>();
+            Data[""] = "vacio";
+            Code = SystemFunctions.GetAllSysFunctions(); 
             Types = new Dictionary<string, CIL_OneType>();
 
         }
@@ -166,7 +167,7 @@ namespace Logic
 
                 foreach (var mtd in type.AllMethods())
                 {
-                    string mtd_name = mtd.Name + "_" + key;
+                    string mtd_name = mtd.Name + "_" + Types_Cool[key].GetTypeWhereMethod(mtd.Name);
                     mtds.Add(new Tuple<string, string>(mtd.Name, mtd_name));
                 }
 
@@ -183,6 +184,31 @@ namespace Logic
         public string Visit(Class_Def node)
         {
             current_type = Types_Cool[node.type.s];
+            
+            // Formando el metodo init
+            method = new Current_Method();
+            string father = Types_Cool[node.type.s].Father.Name;
+            if (father != "IO" && father != "Object")
+            {
+                string f = method.Add_local("father", true);
+                method.Add_Instruction(new CIL_Allocate(f, father));
+                method.Add_Instruction(new CIL_VCall(f, father, "__init", new List<string> {f}));
+                foreach (string attr in Types[father].Attributes)
+                {
+                    string a = method.Add_local("attr", true);
+                    method.Add_Instruction(new CIL_GetAttr(a, new CIL_MyVar(f, father), attr));
+                    method.Add_Instruction(new CIL_SetAttr(new CIL_MyVar("this", node.type.s), attr, a));
+                }
+            }
+            foreach (var attr in node.attr.list_Node)
+            {
+                attr.Visit(this);
+            }
+            
+            method.Add_Instruction(new CIL_Return("this"));
+            string mtdName = "__init_" + node.type.s;
+            Code.Add(mtdName, new CIL_Function(mtdName, new List<string>(), new List<string>(method.locals.Values), method.body));
+            
             foreach (Method_Def item in node.method.list_Node)
             {
                 Visit(item);
@@ -193,16 +219,31 @@ namespace Logic
         public string Visit(Method_Def node)
         {
             method = new Current_Method();
+            method.args = new List<string>(node.args.list_Node.Select(m => m.name.name));
             string solution = node.exp.Visit(this);
             method.Add_Instruction(new CIL_Return(solution));
-            string mtdName = current_type.Name + "_" + node.name.name;
+            string mtdName = node.name.name + "_" + current_type.Name;
             Code.Add(mtdName, new CIL_Function(mtdName, new List<string>(node.args.list_Node.Select(x => x.name.name)), new List<string>(method.locals.Values), method.body));
             return "";
         }
 
         public string Visit(Attr_Def node)
         {
-            throw new NotImplementedException();
+            var exp = "";
+            if (node.exp == null)
+            {
+                if (node.type.s == "Int") exp = new Const("0").Visit(this);
+                else if (node.type.s == "String")
+                {
+                    exp = method.Add_local("expr", true);
+                    method.Add_Instruction(new CIL_Load(exp, Data[""]));
+                }
+                else if (node.type.s == "Bool") exp = new Const("false").Visit(this);
+                else exp = "void";
+            }
+            else exp = node.exp.Visit(this);
+            method.Add_Instruction(new CIL_SetAttr(new CIL_MyVar("this", current_type.Name), node.name.name, exp));
+            return "";
         }
 
         public string Visit(Formal node)
@@ -235,7 +276,6 @@ namespace Logic
         public string Visit(Call_Method node)
         {
             List<string> Args = new List<string>();
-            Args.Add("this");
             foreach (var exp in node.args.list_Node)
             {
                 string value = exp.Visit(this);
@@ -243,7 +283,7 @@ namespace Logic
             }
             var expr = method.Add_local("expr", true);
 
-            method.Add_Instruction(new CIL_Call(expr, node.name.name, Args));
+            method.Add_Instruction(new CIL_Call(expr, node.name.name, "this",  Args));
             return expr;
 
         }
@@ -252,29 +292,25 @@ namespace Logic
         {
             var exp = node.exp.Visit(this);
 
-            string type = "";
-
-            if (node.s != "sin castear ")
-            {
-                type = node.s;
-            }
-            else
-            {
-                type = method.Add_local("typeof", true);
-                method.Add_Instruction(new CIL_Typeof(type, exp));
-            }
-
-            List<string> Args = new List<string>();
-            Args.Add(exp);
+            List<string> Args = new List<string> {exp};
             foreach (var item in node.call.args.list_Node)
             {
                 string value = item.Visit(this);
                 Args.Add(value);
             }
-            var expr = method.Add_local("expr", true);
 
-            method.Add_Instruction(new CIL_VCall(expr, type, node.call.name.name, Args));
-            return expr;
+            var ret = method.Add_local("expr", true);
+            
+            if (node.s != "sin castear ")
+            {
+                method.Add_Instruction(new CIL_VCall(ret, node.s, node.call.name.name, Args));
+            }
+            else
+            {
+                method.Add_Instruction(new CIL_Call(ret, node.call.name.name, exp, Args));
+            }
+            
+            return ret;
         }
 
         public string Visit(Let_In node)
@@ -282,11 +318,20 @@ namespace Logic
             List<string> attrs = new List<string>();
             foreach (var attr in node.attrs.list_Node)
             {
-                if (attr.exp != null)
+                var a = "";
+                if (attr.exp == null)
                 {
-                    attrs.Add(attr.exp.Visit(this));
+                    if (attr.type.s == "Int") a = new Const("0").Visit(this);
+                    else if (attr.type.s == "String")
+                    {
+                        a = method.Add_local("expr", true);
+                        method.Add_Instruction(new CIL_Load(a, Data[""]));
+                    }
+                    else if (attr.type.s == "Bool") a = new Const("false").Visit(this);
+                    else a = "void";
                 }
-                else attrs.Add(null);
+                else a = attr.exp.Visit(this);
+                attrs.Add(a);
             }
 
             method.Add_scope("let");
@@ -319,7 +364,7 @@ namespace Logic
                 method.Add_Instruction(new CIL_Assig(ret, elsse));
                 method.Add_Instruction(new CIL_Goto(end_if));
             }
-
+            method.Add_Instruction(new CIL_Label(begin_if));
             method.Add_Instruction(new CIL_Assig(ret, then));
             method.Add_Instruction(new CIL_Label(end_if));
             return ret;
@@ -347,17 +392,19 @@ namespace Logic
 
         public string Visit(Body node)
         {
+            string s = "";
             foreach (var item in node.list.list_Node)
             {
-                item?.Visit(this);
+                s = item?.Visit(this);
             }
-            return "";
+            return s;
         }
 
         public string Visit(New_type node)
         {
             var ret = method.Add_local("expr", true);
             method.Add_Instruction(new CIL_Allocate(ret, node.type.s));
+            method.Add_Instruction(new CIL_VCall(ret, node.type.s, "__init", new List<string> {ret}));
             return ret;
         }
 
@@ -374,6 +421,7 @@ namespace Logic
             var left = node.left.Visit(this);
             var right = node.right.Visit(this);
             var ret = method.Add_local("expr", true);
+
             method.Add_Instruction(new CIL_ArithExpr(ret, left, right, node.op));
             return ret;
         }
@@ -405,7 +453,7 @@ namespace Logic
                 }
                 else if (ret == null && current_type.GetAttribute(node.id.name) != null)
                 {
-                    method.Add_Instruction(new CIL_SetAttr("this", node.id.name, exp));
+                    method.Add_Instruction(new CIL_SetAttr(new CIL_MyVar("this", node.type.s), node.id.name, exp));
                     return exp;
                 }
                 else
@@ -420,6 +468,8 @@ namespace Logic
         {
             string var = method.current_scope.Get_var(node.name);
 
+            if (node.name == "self") return "this";
+
             if (var == null && method.args.Contains(node.name))
             {
                 return node.name;
@@ -427,7 +477,7 @@ namespace Logic
             else if (var == null && current_type.GetAttribute(node.name) != null)
             {
                 var attr = method.Add_local("attr", true);
-                method.Add_Instruction(new CIL_GetAttr(attr, "this", node.name));
+                method.Add_Instruction(new CIL_GetAttr(attr, new CIL_MyVar("this", node.type.s), node.name));
                 return attr;
             }
             else
@@ -458,13 +508,59 @@ namespace Logic
             }
             return "";
         }
-
-        public string Visit(Branch node)
+       
+        public string Visit(CASE_OF node)
         {
-            throw new NotImplementedException();
+            var exp = node.exp.Visit(this);
+            var solution = method.Add_local("expr", true);
+            var exp_type = method.Add_local("exp_type", true);
+            var match_type = method.Add_local("match", true);
+            var cmp = method.Add_local("cmp", true);
+            method.Add_Instruction(new CIL_Typeof(exp_type, exp));
+
+            var finish = method.current_scope.Var("finish");
+            method.Add_Instruction(new CIL_Assig(match_type, "9999"));
+            List<string> distances = new List<string>();
+            List<string> labels = new List<string>();
+            foreach (var item in node.branches.list_Node)
+            {
+                labels.Add(method.current_scope.Var("label"));
+                string branch_type = method.Add_local("branch_type", true);
+                string branch_inst = method.Add_local("branch_inst", true);
+                method.Add_Instruction(new CIL_Allocate(branch_inst, item.formal.type.s));
+                method.Add_Instruction(new CIL_Typeof(branch_type, branch_inst));
+                string distans = method.Add_local("distans", true);
+                distances.Add(distans);
+                method.Add_Instruction(new CIL_Call(distans, "__distans", "this", new List<string>() { branch_type, exp_type }));
+                method.Add_Instruction(new CIL_ArithExpr(cmp, match_type,distans, "<"));
+                var _if = method.current_scope.Var("if");
+                method.Add_Instruction(new CIL_ConditionalJump(cmp, _if));
+                method.Add_Instruction(new CIL_Assig(match_type,distans));
+
+                method.Add_Instruction(new CIL_Label(_if));
+            }
+
+            for (int i = 0; i < distances.Count; i++)
+            {
+                method.Add_Instruction(new CIL_ArithExpr(cmp, match_type, distances[i], "="));
+                method.Add_Instruction(new CIL_ConditionalJump(cmp, labels[i]));
+            }
+
+            for (int i = 0; i < distances.Count; i++)
+            {
+                method.Add_Instruction(new CIL_Label(labels[i]));
+                method.Add_scope("branch");
+                var dest = method.Add_local(node.branches.list_Node[i].formal.name.name);
+                var exp_branch = node.branches.list_Node[i].exp.Visit(this);
+                method.Add_Instruction(new CIL_Assig(solution, exp_branch));
+                method.End_scope();
+                method.Add_Instruction(new CIL_Goto(finish));
+            }
+            method.Add_Instruction(new CIL_Label(finish));
+            return solution;
         }
 
-        public string Visit(CASE_OF node)
+        public string Visit(Branch node)
         {
             throw new NotImplementedException();
         }
